@@ -1,0 +1,54 @@
+name: Publish Package
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: ${{ runner.os }}-poetry-
+
+    - name: Install dependencies
+      run: |
+        echo 'GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}' >> $GITHUB_ENV
+        echo 'PYPI_TOKEN=${{ secrets.PYPI_TOKEN }}' >> $GITHUB_ENV
+        echo 'TEST_PYPI_TOKEN=${{ secrets.TEST_PYPI_TOKEN }}' >> $GITHUB_ENV
+        poetry install
+
+    - name: Build package
+      run: poetry build
+
+    - name: Publish to GitHub Packages
+      run: |
+        poetry config repositories.github https://nuget.pkg.github.com/your_github_username/index.json
+        poetry publish -r github -u your_github_username -p $GITHUB_TOKEN
+
+    - name: Publish to PyPI
+      run: poetry publish -u __token__ -p $PYPI_TOKEN
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: success()
+      with:
+        body_path: ./RELEASE_NOTES.md
+        token: ${{ secrets.GITHUB_TOKEN }}
+        prerelease: false
